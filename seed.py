@@ -48,6 +48,7 @@ with app.app_context():
     orders = [
         Order(user_id=1, order_date=date(2024, 8, 1), total_price=1698),
         Order(user_id=2, order_date=date(2024, 8, 2), total_price=999),
+        Order(user_id=3, order_date=date(2024, 8, 3), total_price=1799),
     ]
 
     order_products = [
