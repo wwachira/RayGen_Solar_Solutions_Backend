@@ -3,16 +3,23 @@ from models import User, Product, Order, OrderProduct, Review;
 from datetime import date;
 
 with app.app_context():
-    db.drop_all()
-    db.create_all()
-
-
+   
+    print("Deleting data...")
+    OrderProduct.query.delete()
+    Order.query.delete()
+    Product.query.delete()
+    User.query.delete()
+    Review.query.delete()
+      
+      
+    print("Creating users...")
     users = [
-        User(fullname="Alice Smith", email="alice@example.com", password="password123", role="customer", phone_number="1234567890"),
-        User(fullname="Bob Johnson", email="bob@example.com", password="password123", role="admin", phone_number="0987654321"),
-        User(fullname="Charlie Brown", email="charlie@example.com", password="password123", role="customer"),
+        User(name="Alice Smith", email="alice@example.com", password="password123", role="customer", phone_number="1234567890"),
+        User(name="Bob Johnson", email="bob@example.com", password="password123", role="admin", phone_number="0987654321"),
+        User(name="Charlie Brown", email="charlie@example.com", password="password123", role="customer",phone_number="0987654321"),
     ]
-
+      
+    print("Creating products...")
     products = [
         # Cartegory: Solar Panel Light
         Product(name="Solar Panel Icon Royalty", price=999, category="Solar Panel light", stock_quantity=50, image_url="https://atlas-content-cdn.pixelsquid.com/stock-images/solar-panel-cell-RB7AlaB-600.jpg", functionality="Portable design with high efficiency"),
@@ -44,13 +51,14 @@ with app.app_context():
         Product(name="Solar Led Street Light Premium", price=599, category="Solar Street Light", stock_quantity=140, image_url="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQbOUkLaANPNhTpwwp4XrpDWXxChHH1JTXY-7vnIYXlnD_suM1g-O12f94auxcSsWxwRBg&usqp=CAU", functionality="Premium features with smart control"),
         Product(name="Solar Street Light Standard", price=249, category="Solar Street Light", stock_quantity=210, image_url="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT8MDrQ3guqbOvmGYRHXw5AxG1X-keBnuT5JF_B9OF6ATYygku50dukD05HJLi_mIbAFds&usqp=CAU", functionality="Standard model with good efficiency"),
     ]
-
+      
+    print("Creating orders...")
     orders = [
         Order(user_id=1, order_date=date(2024, 8, 1), total_price=1698),
         Order(user_id=2, order_date=date(2024, 8, 2), total_price=999),
         Order(user_id=3, order_date=date(2024, 8, 3), total_price=1799),
     ]
-
+    print("Creating orderproducts...") 
     order_products = [
         OrderProduct(order_id=1, product_id=1, quantity=1),
         OrderProduct(order_id=1, product_id=2, quantity=1),
@@ -77,7 +85,7 @@ with app.app_context():
         OrderProduct(order_id=3, product_id=23, quantity=1),
         OrderProduct(order_id=3, product_id=24, quantity=1),
     ]
-
+    print("Creating reviews ...")
     reviews = [
         Review(user_id=1, product_id=1, comments="The solar panel works great! It's very portable and easy to set up.", rating=5, review_date=date(2024, 8, 1)),
         Review(user_id=2, product_id=2, comments="The solar wall lamp provides excellent lighting and is easy to install.", rating=4, review_date=date(2024, 8, 2)),

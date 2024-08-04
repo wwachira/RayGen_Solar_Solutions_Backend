@@ -1,3 +1,4 @@
+
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import MetaData
 from sqlalchemy.orm import validates, relationship
@@ -16,7 +17,7 @@ db = SQLAlchemy(metadata=metadata)
 
 # User model
 class User(db.Model, SerializerMixin):
-    _tablename_ = 'users'
+    __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True, unique=True)
     name = db.Column(db.String(150), nullable=False)
     email = db.Column(db.String(150), unique=True, nullable=False)
@@ -59,7 +60,7 @@ class User(db.Model, SerializerMixin):
 
 # Product model
 class Product(db.Model, SerializerMixin):
-    _tablename_ = 'products'
+    __tablename__ = 'products'
     id = db.Column(db.Integer, primary_key=True, unique=True)
     name = db.Column(db.String(150), nullable=False)
     price = db.Column(db.Float, nullable=False)
@@ -93,7 +94,7 @@ class Product(db.Model, SerializerMixin):
 
 # Order model
 class Order(db.Model, SerializerMixin):
-    _tablename_ = 'orders'
+    __tablename__ = 'orders'
     id = db.Column(db.Integer, primary_key=True, unique=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     order_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -121,7 +122,7 @@ class Order(db.Model, SerializerMixin):
 
 # Association table for Order-Product Many-to-Many relationship
 class OrderProduct(db.Model, SerializerMixin):
-    _tablename_ = 'order_products'
+    __tablename__ = 'order_products'
     id = db.Column(db.Integer, primary_key=True, unique=True)
     order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False)
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
@@ -148,7 +149,7 @@ class OrderProduct(db.Model, SerializerMixin):
 
 # Review model
 class Review(db.Model, SerializerMixin):
-    _tablename_ = 'reviews'
+    __tablename__ = 'reviews'
     id = db.Column(db.Integer, primary_key=True, unique=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
