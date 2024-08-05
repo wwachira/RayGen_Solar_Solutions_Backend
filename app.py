@@ -22,7 +22,8 @@ migrate = Migrate(app, db)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 db.init_app(app)
-
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 # Decorator for Admin Access
 def admin_required(fn):
     @wraps(fn)
@@ -37,6 +38,22 @@ def admin_required(fn):
         return fn(*args, **kwargs)
     return wrapper
 
+def send_email_verification(email, token):
+    message = Mail(
+        from_email='onesmusmwai40@gmail.com',
+        to_emails=email,
+        subject='Verify your email',
+        html_content=f'<p>Please verify your email by clicking the link below:</p>'
+                     f'<a href="http://yourdomain.com/verify?token={token}">Verify Email</a>'
+    )
+    try:
+        sg = SendGridAPIClient(os.environ.get('SENDGRID_API_KEY'))
+        response = sg.send(message)
+        print(response.status_code)
+        print(response.body)
+        print(response.headers)
+    except Exception as e:
+        print(e.message)
 
 @app.route("/")
 def index():
@@ -334,5 +351,32 @@ def get_review(review_id):
     review = Review.query.get_or_404(review_id)
     response = make_response(jsonify(review.to_dict()), 200)
     return response
+@app.route("/signup", methods=["POST"])
+def signup():
+    data = request.get_json()
+    existing_user = User.query.filter_by(email=data["email"]).first()
+    if existing_user:
+        return jsonify({"error": "Email already exists"}), 422
+
+    hashed_password = bcrypt.generate_password_hash(data["password"]).decode("utf-8")
+    new_user = User(
+        name=data["name"],
+        email=data["email"],
+        password=hashed_password,
+        role=data.get("role", "customer"),
+        phone_number=data["phone_number"]
+    )
+    db.session.add(new_user)
+    db.session.commit()
+
+    token = create_access_token(identity=new_user.id)
+
+    try:
+        send_email_verification(data["email"], token)
+        return jsonify({"message": "User created successfully. Please check your email for verification."}), 201
+    except Exception as e:
+        db.session.rollback() 
+        return jsonify({"error": "Failed to send verification email"}), 500
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
