@@ -40,7 +40,7 @@ def admin_required(fn):
 
 @app.route("/")
 def index():
-    return "<h1>Quick pick groceries</h1>"
+    return "<h1>RayGen Solar Solutions</h1>"
 
 @app.route("/users", methods=["POST"])
 def create_user():
