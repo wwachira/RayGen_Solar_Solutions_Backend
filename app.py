@@ -346,10 +346,22 @@ def get_all_reviews():
         response = make_response(jsonify({"error": "Internal Server Error"}), 500)
         return response
 
-@app.route("/reviews/<int:review_id>", methods=["GET"])
-def get_review(review_id):
-    review = Review.query.get_or_404(review_id)
-    response = make_response(jsonify(review.to_dict()), 200)
+@app.route("/products/<int:product_id>/reviews", methods=["GET"])
+def get_product_reviews(product_id):
+    reviews = db.session.query(Review, User.name).join(User, Review.user_id == User.id).filter(Review.product_id == product_id).all()
+    response_data = [
+        {
+            "id": review.id,
+            "user_id": review.user_id,
+            "user_name": user_name,
+            "product_id": review.product_id,
+            "comments": review.comments,
+            "rating": review.rating,
+            "review_date": review.review_date.strftime('%Y-%m-%d')
+        }
+        for review, user_name in reviews
+    ]
+    response = make_response(jsonify(response_data), 200)
     return response
 @app.route("/signup", methods=["POST"])
 def signup():
@@ -377,6 +389,30 @@ def signup():
     except Exception as e:
         db.session.rollback() 
         return jsonify({"error": "Failed to send verification email"}), 500
+@app.route("/reviews", methods=["POST"])
+def create_review():
+    data = request.get_json()
+    
+    # Ensure the required fields are present
+    if not all(key in data for key in ("user_id", "product_id", "comments", "rating")):
+        return make_response(jsonify({"error": "Missing required fields"}), 400)
+    
+    # Create a new review instance
+    new_review = Review(
+        user_id=data["user_id"],
+        product_id=data["product_id"],
+        comments=data["comments"],
+        rating=data["rating"],
+        review_date=date.today()  # Or use data.get("review_date") if you want to accept date from request
+    )
+    
+    # Add and commit the new review to the database
+    db.session.add(new_review)
+    db.session.commit()
+    
+    # Return the newly created review's ID as part of the response
+    response = make_response(jsonify(new_review_id=new_review.id), 201)
+    return response
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

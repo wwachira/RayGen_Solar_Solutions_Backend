@@ -18,14 +18,16 @@ db = SQLAlchemy(metadata=metadata)
 # User model
 class User(db.Model, SerializerMixin):
     __tablename__ = 'users'
+    
     id = db.Column(db.Integer, primary_key=True, unique=True)
     name = db.Column(db.String(150), nullable=False)
     email = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(150), nullable=False)
     role = db.Column(db.String(50), nullable=False, default='customer')
-    phone_number = db.Column(db.String(15), nullable=True) 
-    
-    
+    phone_number = db.Column(db.String(15), nullable=True)
+    verification_code = db.Column(db.String(6), nullable=True)  # Adjust size as needed
+    is_verified = db.Column(db.Boolean, default=False)
+
     # Adding relationships
     orders = db.relationship('Order', back_populates='user')
     reviews = db.relationship('Review', back_populates='user')
@@ -54,8 +56,11 @@ class User(db.Model, SerializerMixin):
             'name': self.name,
             'email': self.email,
             'role': self.role,
-            'phone_number': self.phone_number  
+            'phone_number': self.phone_number,
+            'verification_code': self.verification_code,
+            'is_verified': self.is_verified
         }
+
 
 
 # Product model
@@ -168,13 +173,12 @@ class Review(db.Model, SerializerMixin):
         return f'<Review id={self.id} user_id={self.user_id} product_id={self.product_id} rating={self.rating}>'
 
     def to_dict(self):
-        return {
-            'id': self.id,
-            'user_id': self.user_id,
-            'product_id': self.product_id,
-            'comments': self.comments,
-            'rating': self.rating,
-            'review_date': self.review_date,
-            'user': self.user.to_dict(),  # Include user details
-            'product': self.product.to_dict()  # Include product details
+          return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "product_id": self.product_id,
+            "comments": self.comments,
+            "rating": self.rating,
+            "review_date": self.review_date.strftime('%Y-%m-%d')
         }
+
