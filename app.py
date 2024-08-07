@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
+
 import os
-from datetime import date
+import resend
+import random
+from datetime import date,timedelta
 from flask import Flask, request, make_response, jsonify
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
@@ -8,6 +11,10 @@ from flask_migrate import Migrate
 from flask_cors import CORS
 from functools import wraps
 from models import db, User, Product, Order, Review
+
+# from dotenv import load_dotenv
+from flask_mail import Mail, Message
+
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DATABASE = os.environ.get("DB_URI", f"sqlite:///{os.path.join(BASE_DIR, 'solar_website.db')}")
@@ -22,8 +29,17 @@ migrate = Migrate(app, db)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 db.init_app(app)
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+
+# load_dotenv()
+
+app.config['MAIL_SERVER']='sandbox.smtp.mailtrap.io'
+app.config['MAIL_PORT'] = 2525
+app.config['MAIL_USERNAME'] = 'cc6618a4c2436c'
+app.config['MAIL_PASSWORD'] = '8578432f236d9f'
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USE_SSL'] = False
+mail = Mail(app)
+# resend.api_key = os.environ.get("RESEND_API_KEY")
 # Decorator for Admin Access
 def admin_required(fn):
     @wraps(fn)
@@ -38,22 +54,22 @@ def admin_required(fn):
         return fn(*args, **kwargs)
     return wrapper
 
+def generate_verification_code():
+    return f"{random.randint(100000, 999999)}"
+
 def send_email_verification(email, token):
-    message = Mail(
-        from_email='onesmusmwai40@gmail.com',
-        to_emails=email,
-        subject='Verify your email',
-        html_content=f'<p>Please verify your email by clicking the link below:</p>'
-                     f'<a href="http://yourdomain.com/verify?token={token}">Verify Email</a>'
+    msg = Message(
+        "Please verify your email",
+        sender="onesmusmwai40@gmail.com",  
+        recipients=[email]
     )
+    msg.body = f"Your verification code is: {token}. Please use this code to verify your email address."
     try:
-        sg = SendGridAPIClient(os.environ.get('SENDGRID_API_KEY'))
-        response = sg.send(message)
-        print(response.status_code)
-        print(response.body)
-        print(response.headers)
+        mail.send(msg)
+        print(f"Verification email sent to {email}.")
     except Exception as e:
-        print(e.message)
+        print(f"Failed to send email to {email}: {e}")
+
 
 @app.route("/")
 def index():
@@ -298,19 +314,16 @@ def login_user_email():
     data = request.get_json()
     email = data.get("email")
     password = data.get("password")
+    remember_me = data.get("remember_me", False)
     
     user = User.query.filter_by(email=email).first()
     
     if user and bcrypt.check_password_hash(user.password, password):
-        token = create_access_token(identity=user.id)
-        user.token = token
-        db.session.commit()
-        
-        return jsonify({"token": user.token, "role": user.role, "success": True}), 200
+        expires = timedelta(days=30) if remember_me else timedelta(hours=1)
+        token = create_access_token(identity=user.id, expires_delta=expires)
+        return jsonify({"token": token, "role": user.role, "success": True}), 200
     else:
         return jsonify({"error": "Invalid email or password"}), 401
-    
-
 @app.route("/login/phone", methods=["POST"])
 def login_user_phone():
     data = request.get_json()
@@ -371,24 +384,43 @@ def signup():
         return jsonify({"error": "Email already exists"}), 422
 
     hashed_password = bcrypt.generate_password_hash(data["password"]).decode("utf-8")
+    verification_code = generate_verification_code()
     new_user = User(
         name=data["name"],
         email=data["email"],
         password=hashed_password,
         role=data.get("role", "customer"),
-        phone_number=data["phone_number"]
+        phone_number=data["phone_number"],
+        verification_code=verification_code,
+        is_verified=False, 
     )
     db.session.add(new_user)
     db.session.commit()
 
-    token = create_access_token(identity=new_user.id)
-
     try:
-        send_email_verification(data["email"], token)
-        return jsonify({"message": "User created successfully. Please check your email for verification."}), 201
+        send_email_verification(data["email"], verification_code)
+        return jsonify({"message": "User created successfully. Please check your email for the verification code."}), 201
     except Exception as e:
-        db.session.rollback() 
+        db.session.rollback()
+        print(f"Error sending verification email: {e}")
         return jsonify({"error": "Failed to send verification email"}), 500
+    
+@app.route("/verify", methods=["POST"])
+def verify_email():
+    data = request.get_json()
+    email = data.get("email")
+    code = data.get("code")
+
+    user = User.query.filter_by(email=email, verification_code=code).first()
+    if user:
+        user.is_verified = True
+        user.verification_code = None  
+        db.session.commit()
+        return jsonify({"message": "Email verified successfully."}), 200
+    else:
+        return jsonify({"error": "Invalid verification code or email."}), 400
+
+
 @app.route("/reviews", methods=["POST"])
 def create_review():
     data = request.get_json()
@@ -413,6 +445,31 @@ def create_review():
     # Return the newly created review's ID as part of the response
     response = make_response(jsonify(new_review_id=new_review.id), 201)
     return response
+@app.route('/reviews/<int:review_id>', methods=['DELETE'])
+def delete_review(review_id):
+    review = Review.query.get_or_404(review_id)
+    db.session.delete(review)
+    db.session.commit()
+    return jsonify({'message': 'Review deleted successfully'}), 200
+@app.route("/user/profile", methods=["GET"])
+@jwt_required()
+def user_profile():
+    user_id = get_jwt_identity()
+    user = User.query.get_or_404(user_id)
+    response = make_response(
+        jsonify(
+            {
+                "user_id": user.id,
+                "name": user.name,
+                "email": user.email,
+                "phone_number": user.phone_number,
+                "role": user.role
+            }
+        ),
+        200,
+    )
+    return response
 
-if __name__ == "__main__":
+
+if __name__ == "_main_":
     app.run(debug=True, port=5000)
