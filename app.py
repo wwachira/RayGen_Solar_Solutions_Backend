@@ -120,7 +120,7 @@ def get_all_users():
         return response
 
 @app.route("/users/<int:user_id>", methods=["PUT"])
-@admin_required
+
 def update_user(user_id):
     data = request.get_json()
     user = User.query.get_or_404(user_id)
@@ -469,6 +469,61 @@ def user_profile():
         200,
     )
     return response
+@app.route('/user/profile/update', methods=['PUT'])
+@jwt_required()
+def update_profile():
+    current_user_id = get_jwt_identity()
+    data = request.get_json()
+
+    if not data:
+        return jsonify({'message': 'No input data provided'}), 400
+
+    user = User.query.filter_by(id=current_user_id).first()
+
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+
+    try:
+        user.name = data['name']
+        user.phone_number = data.get('phone', user.phone_number)
+        user.email = data['email']
+
+        db.session.commit()
+
+        return jsonify({'message': 'Profile updated successfully'}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': f'Failed to update profile. Error: {str(e)}'}), 500
+@app.route('/user/change-password', methods=['PUT'])
+@jwt_required()
+def change_password():
+    current_user_id = get_jwt_identity()
+    data = request.get_json()
+
+    if not data:
+        return jsonify({'message': 'No input data provided'}), 400
+
+    user = User.query.filter_by(id=current_user_id).first()
+
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+
+    if not bcrypt.check_password_hash(user.password, data.get('currentPassword')):
+        return jsonify({'message': 'Current password is incorrect'}), 401
+
+    if data.get('newPassword') != data.get('confirmPassword'):
+        return jsonify({'message': 'Passwords do not match'}), 400
+
+    try:
+        user.password = bcrypt.generate_password_hash(data.get('newPassword')).decode('utf-8')
+        db.session.commit()
+
+        return jsonify({'message': 'Password changed successfully!'}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': f'Failed to change password. Error: {str(e)}'}), 500
 
 
 if __name__ == "_main_":
