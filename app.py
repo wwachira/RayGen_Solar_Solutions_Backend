@@ -11,6 +11,13 @@ from flask_migrate import Migrate
 from flask_cors import CORS
 from functools import wraps
 from models import db, User, Product, Order, Review
+from flask import Flask
+from flask_restful import Api, Resource, reqparse
+import datetime
+import requests
+from requests.auth import HTTPBasicAuth
+import base64
+import json
 
 # from dotenv import load_dotenv
 from flask_mail import Mail, Message
@@ -19,7 +26,22 @@ from flask_mail import Mail, Message
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DATABASE = os.environ.get("DB_URI", f"sqlite:///{os.path.join(BASE_DIR, 'solar_website.db')}")
 
+def get_mpesa_token():
+
+    consumer_key = 'YXZhAOLvjYqmX7TkAirasXHJfTjUHHqQtIOAGXYTLjjVfvUK'
+    consumer_secret = 'c6SpWnqqHckfRGGGKQt56LKdwIDrMQXeHlGs9PEiSbfGLLAmnbUjc7niS8olHtJ2'
+
+    api_URL = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
+
+    # make a get request using python requests liblary
+    r = requests.get(api_URL, auth=HTTPBasicAuth(consumer_key, consumer_secret))
+
+    # return access_token from response
+    return r.json()['access_token']
+
+
 app = Flask(__name__)
+api = Api(app)
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.json.compact = False
@@ -173,13 +195,12 @@ def create_product():
     print(data)  # Log incoming data
     new_product = Product(
         name=data["name"],
-       
+        image_url=data["iamge_url"],
         price=data["price"],
         
         category=data["category"],
         stock_quantity=data["stock_quantity"],
-        description=data["description"],
-        supplier=data["supplier"]
+        functionality =data["functionality"]
     )
     db.session.add(new_product)
     db.session.commit()
@@ -229,7 +250,7 @@ def update_product(product_id):
     data = request.get_json()
     product = Product.query.get_or_404(product_id)
     product.name = data["name"]
-  
+    product.image_url= data["image_url"]
     product.price = data["price"]
     product.category = data["category"]
     product.stock_quantity = data["stock_quantity"]
@@ -246,6 +267,18 @@ def delete_product(product_id):
     db.session.commit()
     response = make_response("", 204)
     return response
+
+@app.route('/products/category', methods=['GET'])
+def get_product_category():
+    category = request.args.get('category')
+    
+    if category:
+        products = Product.query.filter_by(category=category).all()
+        return jsonify([product.to_dict() for product in products]), 200
+    else:
+        return jsonify({'error': 'Category not specified'}), 400
+
+
 
 @app.route("/orders", methods=["POST"])
 
@@ -531,7 +564,104 @@ def change_password():
     except Exception as e:
         db.session.rollback()
         return jsonify({'message': f'Failed to change password. Error: {str(e)}'}), 500
+def get_mpesa_token():
+
+    consumer_key = 'YXZhAOLvjYqmX7TkAirasXHJfTjUHHqQtIOAGXYTLjjVfvUK'
+    consumer_secret = 'c6SpWnqqHckfRGGGKQt56LKdwIDrMQXeHlGs9PEiSbfGLLAmnbUjc7niS8olHtJ2'
+
+    api_URL = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
+
+    # make a get request using python requests liblary
+    r = requests.get(api_URL, auth=HTTPBasicAuth(consumer_key, consumer_secret))
+
+    # return access_token from response
+    return r.json()['access_token']
 
 
+class MakeSTKPush(Resource):
+    parser = reqparse.RequestParser()
+    parser.add_argument('phone',
+                        type=str,
+                        required=True,
+                        help="This field is required")
+
+    parser.add_argument('amount',
+                        type=str,
+                        required=True,
+                        help="This field is required")
+
+    def post(self):
+        """Make an STK push to Daraja API"""
+
+        # get phone and amount from request body
+        data = MakeSTKPush.parser.parse_args()
+
+        # encode business_shortcode, online_passkey and current_time (yyyyMMhhmmss) to base64
+        encode_data = b"<Business_shortcode><online_passkey><current timestamp>"
+        passkey = base64.b64encode(encode_data)
+
+        # make stk push
+        try:
+            # get access_token
+            access_token = get_mpesa_token()
+
+            # stk_push request url
+            api_url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
+
+            # put access_token in request headers
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            }
+
+            # define request body
+            request = {
+                "BusinessShortCode": "174379",
+                "Password": "MTc0Mzc5YmZiMjc5ZjlhYTliZGJjZjE1OGU5N2RkNzFhNDY3Y2QyZTBjODkzMDU5YjEwZjc4ZTZiNzJhZGExZWQyYzkxOTIwMTYwMjE2MTY1NjI3",
+                "Timestamp": "20160216165627",
+                "TransactionType": "CustomerPayBillOnline",
+                "Amount": data["amount"],
+                "PartyA": data["phone"],
+                "PartyB": "174379",
+                "PhoneNumber": data["phone"],
+                "CallBackURL": "https://mydomain.com/pat",
+                "AccountReference": "Test",
+                "TransactionDesc": "Test"
+            }
+
+            # make request and catch response
+            response = requests.post(api_url, json=request, headers=headers)
+
+            # check response code for errors and return response
+            if response.status_code > 299:
+                return {
+                    "success": False,
+                    "message": "Sorry, something went wrong please try again later."
+                }, 400
+
+            # CheckoutRequestID = response.text['CheckoutRequestID']
+
+            # Do something in your database e.g store the transaction or as an order
+            # make sure to store the CheckoutRequestID to identify the transaction in
+            # your CallBackURL endpoint.
+
+            # return a response to your user
+            return {
+                "data": json.loads(response.text)
+            }, 200
+
+        except:
+            # catch error and return response
+            return {
+                "success": False,
+                "message": "Sorry something went wrong please try again."
+            }, 400
+
+
+# stk push path [POST request to {baseURL}/stkpush]
+api.add_resource(MakeSTKPush, "/stkpush")
+
+if __name__ == "__main__":
+    app.run(debug=True)
 if __name__ == "_main_":
     app.run(debug=True, port=5000)
