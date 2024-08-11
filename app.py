@@ -580,86 +580,71 @@ def get_mpesa_token():
 
 class MakeSTKPush(Resource):
     parser = reqparse.RequestParser()
-    parser.add_argument('phone',
-                        type=str,
-                        required=True,
-                        help="This field is required")
-
-    parser.add_argument('amount',
-                        type=str,
-                        required=True,
-                        help="This field is required")
+    parser.add_argument('phone', type=str, required=True, help="This field is required")
+    parser.add_argument('amount', type=str, required=True, help="This field is required")
 
     def post(self):
         """Make an STK push to Daraja API"""
 
-        # get phone and amount from request body
         data = MakeSTKPush.parser.parse_args()
 
-        # encode business_shortcode, online_passkey and current_time (yyyyMMhhmmss) to base64
-        encode_data = b"<Business_shortcode><online_passkey><current timestamp>"
-        passkey = base64.b64encode(encode_data)
+        # Construct the password using the required fields
+        business_shortcode = "174379"
+        online_passkey = "your_online_passkey"
+        current_timestamp = "20240811123456"  # You should generate this dynamically
+        password = base64.b64encode(f"{business_shortcode}{online_passkey}{current_timestamp}".encode()).decode()
 
-        # make stk push
         try:
-            # get access_token
             access_token = get_mpesa_token()
 
-            # stk_push request url
             api_url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
 
-            # put access_token in request headers
             headers = {
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json"
             }
 
-            # define request body
-            request = {
-                "BusinessShortCode": "174379",
-                "Password": "MTc0Mzc5YmZiMjc5ZjlhYTliZGJjZjE1OGU5N2RkNzFhNDY3Y2QyZTBjODkzMDU5YjEwZjc4ZTZiNzJhZGExZWQyYzkxOTIwMTYwMjE2MTY1NjI3",
-                "Timestamp": "20160216165627",
+            request_data = {
+                "BusinessShortCode": business_shortcode,
+                "Password": password,
+                "Timestamp": current_timestamp,
                 "TransactionType": "CustomerPayBillOnline",
                 "Amount": data["amount"],
                 "PartyA": data["phone"],
-                "PartyB": "174379",
+                "PartyB": business_shortcode,
                 "PhoneNumber": data["phone"],
                 "CallBackURL": "https://mydomain.com/pat",
                 "AccountReference": "Test",
                 "TransactionDesc": "Test"
             }
 
-            # make request and catch response
-            response = requests.post(api_url, json=request, headers=headers)
+            response = requests.post(api_url, json=request_data, headers=headers)
 
-            # check response code for errors and return response
             if response.status_code > 299:
                 return {
                     "success": False,
                     "message": "Sorry, something went wrong please try again later."
                 }, 400
+            
+            response_data = json.loads(response.text)
 
-            # CheckoutRequestID = response.text['CheckoutRequestID']
+            if response_data["ResultCode"] == 0:
+                return {
+                    "success": True,
+                    "message": "Payment successful!"
+                }, 200
+            else:
+                return {
+                    "success": False,
+                    "message": "Payment failed or was cancelled."
+                }, 400
 
-            # Do something in your database e.g store the transaction or as an order
-            # make sure to store the CheckoutRequestID to identify the transaction in
-            # your CallBackURL endpoint.
-
-            # return a response to your user
-            return {
-                "data": json.loads(response.text)
-            }, 200
-
-        except:
-            # catch error and return response
+        except Exception as e:
+            print(e)  # Log the exception for debugging
             return {
                 "success": False,
                 "message": "Sorry something went wrong please try again."
             }, 400
-
-
-# stk push path [POST request to {baseURL}/stkpush]
-api.add_resource(MakeSTKPush, "/stkpush")
 
 if __name__ == "__main__":
     app.run(debug=True)
