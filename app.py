@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 
 import os
@@ -162,22 +163,7 @@ def update_user(user_id):
     response = make_response(jsonify(message="User updated successfully"), 200)
     return response
 
-@app.route("/users/<int:user_id>", methods=["GET"])
-@admin_required
-def get_user(user_id):
-    user = User.query.get_or_404(user_id)
-    response = make_response(
-        jsonify(
-            {
-                "user_id": user.id,
-                "name": user.name,
-                "email": user.email,
-                "role": user.role,
-            }
-        ),
-        200,
-    )
-    return response
+
 
 @app.route("/users/<int:user_id>", methods=["DELETE"])
 @admin_required
@@ -195,7 +181,7 @@ def create_product():
     print(data)  # Log incoming data
     new_product = Product(
         name=data["name"],
-        image_url=data["iamge_url"],
+       
         price=data["price"],
         
         category=data["category"],
