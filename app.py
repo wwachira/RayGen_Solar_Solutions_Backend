@@ -11,7 +11,7 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 from flask_migrate import Migrate
 from flask_cors import CORS
 from functools import wraps
-from models import db, User, Product, Order, Review ,OrderStatus
+from models import db, User, Product, Order, Review ,OrderStatus,OrderProduct
 from flask import Flask
 from flask_restful import Api, Resource, reqparse
 import datetime
@@ -303,6 +303,7 @@ def create_order():
     response = make_response(jsonify(new_order_id=new_order.id), 201)
     return response
 
+
 @app.route("/orders", methods=["GET"])
 @admin_required
 def get_orders():
@@ -310,7 +311,7 @@ def get_orders():
         # Query the database to get all orders
         orders = Order.query.all()
         
-        # Convert orders to a list of dictionaries
+        # Convert orders to a list of dictionaries, now including customer name
         orders_list = [order.to_dict() for order in orders]
         
         # Prepare the response
@@ -321,6 +322,8 @@ def get_orders():
         print(f"Error retrieving orders: {e}")
         response = jsonify({"error": "An error occurred while retrieving orders."})
         return response, 500
+
+
 @app.route("/orders/<int:order_id>", methods=["GET"])
 @jwt_required()
 def get_order(order_id):
@@ -348,18 +351,50 @@ def get_order(order_id):
     return response
 
 @app.route("/orders/<int:order_id>", methods=["PUT"])
-@admin_required
 def update_order(order_id):
-    data = request.get_json()
-    print(data)  # Debugging: Print the received data to the console
-    order = Order.query.get_or_404(order_id)
-    order.user_id = data["user_id"]
-    order.order_date = data["order_date"]
-    order.total_price = data["total_price"]
-    db.session.commit()
-    response = make_response(jsonify(message="Order updated successfully"), 200)
-    return response
+    try:
+        # Retrieve the order by ID
+        order = Order.query.get_or_404(order_id)
 
+        # Get JSON data from the request
+        data = request.json
+
+        # Update the order fields if they are provided in the request
+        if 'order_date' in data:
+            order.order_date = date.fromisoformat(data['order_date'])
+        if 'total_price' in data:
+            order.total_price = data['total_price']
+        if 'order_status' in data:
+            try:
+                order.order_status = OrderStatus[data['order_status'].upper()]
+            except KeyError:
+                return jsonify({"error": "Invalid order status."}), 400
+        if 'delivery_date' in data:
+            order.delivery_date = date.fromisoformat(data['delivery_date']) if data['delivery_date'] else None
+
+        if 'order_products' in data:
+            # Assuming order_products is an array of product details
+            # Clear existing products
+            order.order_products.clear()
+            # Add new products
+            for op_data in data['order_products']:
+                # Assuming OrderProduct requires certain fields
+                product = OrderProduct(**op_data)
+                order.order_products.append(product)
+
+        # Save the updated order to the database
+        db.session.commit()
+
+        # Return the updated order as a JSON response
+        return jsonify(order.to_dict()), 200
+
+    except KeyError as e:
+        return jsonify({"error": f"Invalid key: {str(e)}"}), 400
+    except ValueError as e:
+        return jsonify({"error": f"Value error: {str(e)}"}), 400
+    except Exception as e:
+        print(f"Error updating order: {e}")
+        return jsonify({"error": "An error occurred while updating the order."}), 500
 
 @app.route("/orders/<int:order_id>", methods=["DELETE"])
 @jwt_required()

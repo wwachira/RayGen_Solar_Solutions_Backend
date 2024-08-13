@@ -47,7 +47,7 @@ with app.app_context():
     print("Creating products...")
     products = [
         # Cartegory: Solar Panel Light
-        Product(name="RadiantBeam Titan", price=999, category="Solar Panel light", stock_quantity=50, image_url="https://atlas-content-cdn.pixelsquid.com/stock-images/solar-panel-cell-RB7AlaB-600.jpg", functionality="Portable design with high efficiency"),
+        Product(name="RadiantBeam Titan", price=1, category="Solar Panel light", stock_quantity=50, image_url="https://atlas-content-cdn.pixelsquid.com/stock-images/solar-panel-cell-RB7AlaB-600.jpg", functionality="Portable design with high efficiency"),
         Product(name="EcoRay Elite", price=1099, category="Solar Panel light", stock_quantity=40, image_url="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQTvsgp5ygto1x9lm52k8R-1mRz4BTA0_eZrgZE6xqGFpBV8zwt9Dl3m7duWmal5VE52xk&usqp=CAU", functionality="Advanced energy storage"),
         Product(name="RadiantLite MiniPro", price=499, category="Solar Panel light", stock_quantity=70, image_url="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRZ2XNhi0N3UmOln9akTA6BJnR_hp_wqdpxSFTOMokR6B-b1Xd43G0cGlEdfpY4mzIiQ7A&usqp=CAU", functionality="Compact and lightweight"),
         Product(name="EcoGlow Aura", price=899, category="Solar Panel light", stock_quantity=60, image_url="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRk80ef5WN1HhIMXKRLtwxrJJD4Fauhl56nT4oNWrJiaWtZLuAaq2NuxbUEhoVxjxvhpbU&usqp=CAU", functionality="Environmentally friendly"),

@@ -95,6 +95,7 @@ class Product(db.Model, SerializerMixin):
             'stock_quantity': self.stock_quantity,
             'image_url': self.image_url,
             'functionality': self.functionality,
+             
             
         }
 
@@ -130,6 +131,7 @@ class Order(db.Model, SerializerMixin):
         return {
             'id': self.id,
             'user_id': self.user_id,
+            'customer_name':self.user.name,
             'order_date': self.order_date,
             'total_price': self.total_price,
             'order_status': self.order_status.value,
@@ -198,4 +200,3 @@ class Review(db.Model, SerializerMixin):
             "rating": self.rating,
             "review_date": self.review_date.strftime('%Y-%m-%d')
         }
-
