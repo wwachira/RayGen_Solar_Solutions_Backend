@@ -264,7 +264,16 @@ def get_product_category():
     else:
         return jsonify({'error': 'Category not specified'}), 400
 
-
+@app.route('/api/products/total', methods=['GET'])
+def get_total_products():
+    try:
+        # Fetch total number of products
+        total = Product.query.count()
+        return jsonify({'total': total}), 200
+    except Exception as e:
+        # Log the error for debugging
+        app.logger.error(f"Error fetching total products: {e}")
+        return jsonify({'error': 'An error occurred while fetching the total number of products'}), 500
 
 @app.route("/orders", methods=["POST"])
 
@@ -336,20 +345,13 @@ def login_user_email():
     remember_me = data.get("remember_me", False)
     
     user = User.query.filter_by(email=email).first()
-
-    if not user:
-        return jsonify({"error": "Invalid email or password"}), 401
     
-    if not user.is_verified:
-        return jsonify({"error": "Please verify your email before logging in."}), 403
-
-    if bcrypt.check_password_hash(user.password, password):
+    if user and bcrypt.check_password_hash(user.password, password):
         expires = timedelta(days=30) if remember_me else timedelta(hours=1)
         token = create_access_token(identity=user.id, expires_delta=expires)
         return jsonify({"token": token, "role": user.role, "success": True}), 200
     else:
         return jsonify({"error": "Invalid email or password"}), 401
-
 @app.route("/login/phone", methods=["POST"])
 def login_user_phone():
     data = request.get_json()
