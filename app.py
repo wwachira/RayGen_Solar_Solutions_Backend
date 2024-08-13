@@ -4,14 +4,14 @@
 import os
 import resend
 import random
-from datetime import date,timedelta
+from datetime import date,timedelta 
 from flask import Flask, request, make_response, jsonify
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_migrate import Migrate
 from flask_cors import CORS
 from functools import wraps
-from models import db, User, Product, Order, Review
+from models import db, User, Product, Order, Review ,OrderStatus
 from flask import Flask
 from flask_restful import Api, Resource, reqparse
 import datetime
@@ -276,26 +276,64 @@ def get_total_products():
         return jsonify({'error': 'An error occurred while fetching the total number of products'}), 500
 
 @app.route("/orders", methods=["POST"])
-
 def create_order():
     data = request.get_json()
+    
+    # Create a new Order instance
+    order_date = date.today()  # Use current date (without time)
+    delivery_date = Order.calculate_delivery_date(order_date)  # Calculate delivery date using only date
+    
+    # Print debug information (optional)
+    print(f"Order Date: {order_date}")
+    print(f"Calculated Delivery Date: {delivery_date}")
+
     new_order = Order(
         user_id=data["user_id"],
-        order_date=date.today(),
+        order_date=order_date,
         total_price=data["total_price"],
+        order_status=OrderStatus.PENDING,  # Default status
+        delivery_date=delivery_date  # Calculate delivery date
     )
+    
+    # Add the new order to the session and commit
     db.session.add(new_order)
     db.session.commit()
+    
+    # Prepare the response
     response = make_response(jsonify(new_order_id=new_order.id), 201)
     return response
 
+@app.route("/orders", methods=["GET"])
+@admin_required
+def get_orders():
+    try:
+        # Query the database to get all orders
+        orders = Order.query.all()
+        
+        # Convert orders to a list of dictionaries
+        orders_list = [order.to_dict() for order in orders]
+        
+        # Prepare the response
+        response = jsonify(orders_list)
+        return response
+    except Exception as e:
+        # Handle exceptions and return an error response
+        print(f"Error retrieving orders: {e}")
+        response = jsonify({"error": "An error occurred while retrieving orders."})
+        return response, 500
 @app.route("/orders/<int:order_id>", methods=["GET"])
 @jwt_required()
 def get_order(order_id):
     user_id = get_jwt_identity()
-    order = Order.query.get_or_404(order_id)
-    if order.user_id != user_id:
+    user = User.query.get(user_id)
+
+    # Check if the user is an admin
+    if user.role != "admin":
         return jsonify({"error": "Access denied"}), 403
+
+    # Retrieve the order regardless of the user_id
+    order = Order.query.get_or_404(order_id)
+
     response = make_response(
         jsonify(
             {
@@ -313,6 +351,7 @@ def get_order(order_id):
 @admin_required
 def update_order(order_id):
     data = request.get_json()
+    print(data)  # Debugging: Print the received data to the console
     order = Order.query.get_or_404(order_id)
     order.user_id = data["user_id"]
     order.order_date = data["order_date"]
@@ -321,21 +360,26 @@ def update_order(order_id):
     response = make_response(jsonify(message="Order updated successfully"), 200)
     return response
 
+
 @app.route("/orders/<int:order_id>", methods=["DELETE"])
 @jwt_required()
 def delete_order(order_id):
     user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    # Check if the user is an admin
+    if user.role != 'admin':
+        return jsonify({"error": "Access denied"}), 403
+
+    # Retrieve the order and delete it
     order = Order.query.get_or_404(order_id)
-    
-    if order.user_id != user_id:
-        user = User.query.get(user_id)
-        if user.role != 'admin':
-            return jsonify({"error": "Access denied"}), 403
 
     db.session.delete(order)
     db.session.commit()
+    
     response = make_response("", 204)
     return response
+
 
 @app.route("/login/email", methods=["POST"])
 def login_user_email():

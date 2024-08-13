@@ -1,10 +1,11 @@
 
 
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import MetaData
+from sqlalchemy import MetaData, Enum
 from sqlalchemy.orm import validates, relationship
 from sqlalchemy_serializer import SerializerMixin
-from datetime import datetime
+from datetime import date ,timedelta,datetime
+import enum
 
 # Metadata with naming convention for foreign keys
 metadata = MetaData(
@@ -30,8 +31,8 @@ class User(db.Model, SerializerMixin):
     is_verified = db.Column(db.Boolean, default=False)
 
     # Adding relationships
-    orders = db.relationship('Order', back_populates='user')
-    reviews = db.relationship('Review', back_populates='user')
+    orders = db.relationship('Order', back_populates='user' ,cascade="all, delete-orphan")
+    reviews = db.relationship('Review', back_populates='user',cascade="all, delete-orphan")
 
     # Adding serialization rules
     serialize_rules = ('-orders.user', '-reviews.user', '-password')
@@ -76,8 +77,8 @@ class Product(db.Model, SerializerMixin):
     functionality = db.Column(db.Text, nullable=True)
     
     # Adding relationships
-    order_products = db.relationship('OrderProduct', back_populates='product')
-    reviews = db.relationship('Review', back_populates='product')
+    order_products = db.relationship('OrderProduct', back_populates='product' ,cascade="all, delete-orphan")
+    reviews = db.relationship('Review', back_populates='product',cascade="all, delete-orphan")
 
     # Adding serialization rules
     serialize_rules = ('-order_products.product', '-reviews.product')
@@ -99,12 +100,21 @@ class Product(db.Model, SerializerMixin):
 
 
 # Order model
+
+class OrderStatus(enum.Enum):
+    PENDING = "Pending"
+    SHIPPED = "Shipped"
+    DELIVERED = "Delivered"
+    CANCELLED = "Cancelled"
+
 class Order(db.Model, SerializerMixin):
     __tablename__ = 'orders'
     id = db.Column(db.Integer, primary_key=True, unique=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    order_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    order_date = db.Column(db.Date, nullable=False, default=date.today)
     total_price = db.Column(db.Float, nullable=False)
+    order_status = db.Column(Enum(OrderStatus), nullable=False, default=OrderStatus.PENDING)
+    delivery_date = db.Column(db.Date, nullable=True)  # Changed to Date
 
     # Adding relationships
     order_products = db.relationship('OrderProduct', back_populates='order')
@@ -113,8 +123,8 @@ class Order(db.Model, SerializerMixin):
     # Adding serialization rules
     serialize_rules = ('-order_products.order', '-user.orders', '-user.password')
 
-    def _repr_(self):
-        return f'<Order id={self.id} user_id={self.user_id} order_date={self.order_date} total_price={self.total_price}>'
+    def __repr__(self):
+        return f'<Order id={self.id} user_id={self.user_id} order_date={self.order_date} total_price={self.total_price} status={self.order_status}>'
 
     def to_dict(self):
         return {
@@ -122,10 +132,16 @@ class Order(db.Model, SerializerMixin):
             'user_id': self.user_id,
             'order_date': self.order_date,
             'total_price': self.total_price,
+            'order_status': self.order_status.value,
+            'delivery_date': self.delivery_date,
             'order_products': [op.to_dict() for op in self.order_products]
         }
 
-
+    @staticmethod
+    def calculate_delivery_date(order_date):
+        # Example: Set delivery date to 7 days after order_date
+        delivery_date = order_date + timedelta(days=7)
+        return delivery_date  # Return the date directly
 # Association table for Order-Product Many-to-Many relationship
 class OrderProduct(db.Model, SerializerMixin):
     __tablename__ = 'order_products'

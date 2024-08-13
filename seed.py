@@ -1,6 +1,6 @@
 from app import app, db;
 from models import User, Product, Order, OrderProduct, Review;
-from datetime import date;
+from datetime import date,datetime;
 
 with app.app_context():
    
@@ -79,10 +79,26 @@ with app.app_context():
       
     print("Creating orders...")
     orders = [
-        Order(user_id=1, order_date=date(2024, 8, 1), total_price=1698),
-        Order(user_id=2, order_date=date(2024, 8, 2), total_price=999),
-        Order(user_id=3, order_date=date(2024, 8, 3), total_price=1799),
+        Order(
+            user_id=1,
+            order_date=date(2024, 8, 1),
+            total_price=1698,
+            delivery_date=Order.calculate_delivery_date(date(2024, 8, 1))
+        ),
+        Order(
+            user_id=2,
+            order_date=date(2024, 8, 2),
+            total_price=999,
+            delivery_date=Order.calculate_delivery_date(date(2024, 8, 2))
+        ),
+        Order(
+            user_id=3,
+            order_date=date(2024, 8, 3),
+            total_price=1799,
+            delivery_date=Order.calculate_delivery_date(date(2024, 8, 3))
+        ),
     ]
+
     print("Creating orderproducts...") 
     order_products = [
         OrderProduct(order_id=1, product_id=1, quantity=1),
