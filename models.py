@@ -118,7 +118,7 @@ class Order(db.Model, SerializerMixin):
     delivery_date = db.Column(db.Date, nullable=True)  # Changed to Date
 
     # Adding relationships
-    order_products = db.relationship('OrderProduct', back_populates='order')
+    order_products = db.relationship('OrderProduct', back_populates='order',cascade="all, delete-orphan")
     user = db.relationship('User', back_populates='orders')
 
     # Adding serialization rules

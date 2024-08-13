@@ -349,6 +349,15 @@ def get_order(order_id):
         200,
     )
     return response
+@app.route('/orders/status', methods=['GET'])
+def get_order_status():
+    order_status = request.args.get('status')  # Ensure 'status' matches the query parameter
+
+    if order_status:
+        orders = Order.query.filter_by(order_status=order_status).all()  # Use correct column name
+        return jsonify([order.to_dict() for order in orders]), 200
+    else:
+        return jsonify({'error': 'Status not specified'}), 400
 
 @app.route("/orders/<int:order_id>", methods=["PUT"])
 def update_order(order_id):
@@ -397,24 +406,26 @@ def update_order(order_id):
         return jsonify({"error": "An error occurred while updating the order."}), 500
 
 @app.route("/orders/<int:order_id>", methods=["DELETE"])
-@jwt_required()
+
 def delete_order(order_id):
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
+    try:
+        # Retrieve the order by ID
+        order = Order.query.get_or_404(order_id)
+        print(f"Attempting to delete order with ID: {order_id}")
 
-    # Check if the user is an admin
-    if user.role != 'admin':
-        return jsonify({"error": "Access denied"}), 403
+        # Delete the order
+        db.session.delete(order)
+        db.session.commit()
+        print(f"Order with ID: {order_id} has been deleted successfully.")
 
-    # Retrieve the order and delete it
-    order = Order.query.get_or_404(order_id)
-
-    db.session.delete(order)
-    db.session.commit()
+        # Return a 204 No Content response
+        return make_response("", 204)
     
-    response = make_response("", 204)
-    return response
-
+    except Exception as e:
+        # Log the error and return an error response
+        print(f"Error occurred while deleting order with ID: {order_id}: {e}")
+        db.session.rollback()
+        return make_response(jsonify({"error": "Order could not be deleted"}), 500)
 
 @app.route("/login/email", methods=["POST"])
 def login_user_email():
