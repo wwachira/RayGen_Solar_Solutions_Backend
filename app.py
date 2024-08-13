@@ -54,10 +54,10 @@ db.init_app(app)
 
 # load_dotenv()
 
-app.config['MAIL_SERVER']='sandbox.smtp.mailtrap.io'
-app.config['MAIL_PORT'] = 2525
-app.config['MAIL_USERNAME'] = 'cc6618a4c2436c'
-app.config['MAIL_PASSWORD'] = '8578432f236d9f'
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USERNAME'] = 'charitywanjiku8245@gmail.com'
+app.config['MAIL_PASSWORD'] = 'tfig yggf lyao mbav' 
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
 mail = Mail(app)
