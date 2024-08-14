@@ -1,17 +1,16 @@
-
 #!/usr/bin/env python3
 
 import os
 import resend
 import random
-from datetime import date,timedelta 
+from datetime import date,timedelta
 from flask import Flask, request, make_response, jsonify
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_migrate import Migrate
 from flask_cors import CORS
 from functools import wraps
-from models import db, User, Product, Order, Review ,OrderStatus,OrderProduct
+from models import db, User, Product, Order, Review,OrderStatus,OrderProduct
 from flask import Flask
 from flask_restful import Api, Resource, reqparse
 import datetime
@@ -19,6 +18,8 @@ import requests
 from requests.auth import HTTPBasicAuth
 import base64
 import json
+from flask_mail import Message
+from flask import render_template_string
 
 # from dotenv import load_dotenv
 from flask_mail import Mail, Message
@@ -55,10 +56,10 @@ db.init_app(app)
 
 # load_dotenv()
 
-app.config['MAIL_SERVER']='sandbox.smtp.mailtrap.io'
-app.config['MAIL_PORT'] = 2525
-app.config['MAIL_USERNAME'] = 'cc6618a4c2436c'
-app.config['MAIL_PASSWORD'] = '8578432f236d9f'
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USERNAME'] = 'charitywanjiku8245@gmail.com'
+app.config['MAIL_PASSWORD'] = 'zmcs hkrq ohze xcxt' 
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
 mail = Mail(app)
@@ -83,15 +84,27 @@ def generate_verification_code():
 def send_email_verification(email, token):
     msg = Message(
         "Please verify your email",
-        sender="onesmusmwai40@gmail.com",  
+        sender="charitywanjiku8245@gmail.com",  
         recipients=[email]
     )
+    
+    # Create HTML content with the token in bold
+    html_body = render_template_string(
+        f"""
+        <p>Your verification code is: <strong>{token}</strong>.</p>
+        <p>Please use this code to verify your email address.</p>
+        """
+    )
+    
     msg.body = f"Your verification code is: {token}. Please use this code to verify your email address."
+    msg.html = html_body
+    
     try:
         mail.send(msg)
         print(f"Verification email sent to {email}.")
     except Exception as e:
         print(f"Failed to send email to {email}: {e}")
+
 
 
 @app.route("/")
@@ -275,35 +288,7 @@ def get_total_products():
         app.logger.error(f"Error fetching total products: {e}")
         return jsonify({'error': 'An error occurred while fetching the total number of products'}), 500
 
-@app.route("/orders", methods=["POST"])
-def create_order():
-    data = request.get_json()
-    
-    # Create a new Order instance
-    order_date = date.today()  # Use current date (without time)
-    delivery_date = Order.calculate_delivery_date(order_date)  # Calculate delivery date using only date
-    
-    # Print debug information (optional)
-    print(f"Order Date: {order_date}")
-    print(f"Calculated Delivery Date: {delivery_date}")
-
-    new_order = Order(
-        user_id=data["user_id"],
-        order_date=order_date,
-        total_price=data["total_price"],
-        order_status=OrderStatus.PENDING,  # Default status
-        delivery_date=delivery_date  # Calculate delivery date
-    )
-    
-    # Add the new order to the session and commit
-    db.session.add(new_order)
-    db.session.commit()
-    
-    # Prepare the response
-    response = make_response(jsonify(new_order_id=new_order.id), 201)
-    return response
-
-
+ 
 @app.route("/orders", methods=["GET"])
 @admin_required
 def get_orders():
@@ -435,13 +420,20 @@ def login_user_email():
     remember_me = data.get("remember_me", False)
     
     user = User.query.filter_by(email=email).first()
+
+    if not user:
+        return jsonify({"error": "Invalid email or password"}), 401
     
-    if user and bcrypt.check_password_hash(user.password, password):
+    if not user.is_verified:
+        return jsonify({"error": "Please verify your email before logging in."}), 403
+
+    if bcrypt.check_password_hash(user.password, password):
         expires = timedelta(days=30) if remember_me else timedelta(hours=1)
         token = create_access_token(identity=user.id, expires_delta=expires)
         return jsonify({"token": token, "role": user.role, "success": True}), 200
     else:
         return jsonify({"error": "Invalid email or password"}), 401
+
 @app.route("/login/phone", methods=["POST"])
 def login_user_phone():
     data = request.get_json()
@@ -658,86 +650,71 @@ def get_mpesa_token():
 
 class MakeSTKPush(Resource):
     parser = reqparse.RequestParser()
-    parser.add_argument('phone',
-                        type=str,
-                        required=True,
-                        help="This field is required")
-
-    parser.add_argument('amount',
-                        type=str,
-                        required=True,
-                        help="This field is required")
+    parser.add_argument('phone', type=str, required=True, help="This field is required")
+    parser.add_argument('amount', type=str, required=True, help="This field is required")
 
     def post(self):
         """Make an STK push to Daraja API"""
 
-        # get phone and amount from request body
         data = MakeSTKPush.parser.parse_args()
 
-        # encode business_shortcode, online_passkey and current_time (yyyyMMhhmmss) to base64
-        encode_data = b"<Business_shortcode><online_passkey><current timestamp>"
-        passkey = base64.b64encode(encode_data)
+        # Construct the password using the required fields
+        business_shortcode = "174379"
+        online_passkey = "your_online_passkey"
+        current_timestamp = "20240811123456"  # You should generate this dynamically
+        password = base64.b64encode(f"{business_shortcode}{online_passkey}{current_timestamp}".encode()).decode()
 
-        # make stk push
         try:
-            # get access_token
             access_token = get_mpesa_token()
 
-            # stk_push request url
             api_url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
 
-            # put access_token in request headers
             headers = {
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json"
             }
 
-            # define request body
-            request = {
-                "BusinessShortCode": "174379",
-                "Password": "MTc0Mzc5YmZiMjc5ZjlhYTliZGJjZjE1OGU5N2RkNzFhNDY3Y2QyZTBjODkzMDU5YjEwZjc4ZTZiNzJhZGExZWQyYzkxOTIwMTYwMjE2MTY1NjI3",
-                "Timestamp": "20160216165627",
+            request_data = {
+                "BusinessShortCode": business_shortcode,
+                "Password": password,
+                "Timestamp": current_timestamp,
                 "TransactionType": "CustomerPayBillOnline",
                 "Amount": data["amount"],
                 "PartyA": data["phone"],
-                "PartyB": "174379",
+                "PartyB": business_shortcode,
                 "PhoneNumber": data["phone"],
                 "CallBackURL": "https://mydomain.com/pat",
                 "AccountReference": "Test",
                 "TransactionDesc": "Test"
             }
 
-            # make request and catch response
-            response = requests.post(api_url, json=request, headers=headers)
+            response = requests.post(api_url, json=request_data, headers=headers)
 
-            # check response code for errors and return response
             if response.status_code > 299:
                 return {
                     "success": False,
                     "message": "Sorry, something went wrong please try again later."
                 }, 400
+            
+            response_data = json.loads(response.text)
 
-            # CheckoutRequestID = response.text['CheckoutRequestID']
+            if response_data["ResultCode"] == 0:
+                return {
+                    "success": True,
+                    "message": "Payment successful!"
+                }, 200
+            else:
+                return {
+                    "success": False,
+                    "message": "Payment failed or was cancelled."
+                }, 400
 
-            # Do something in your database e.g store the transaction or as an order
-            # make sure to store the CheckoutRequestID to identify the transaction in
-            # your CallBackURL endpoint.
-
-            # return a response to your user
-            return {
-                "data": json.loads(response.text)
-            }, 200
-
-        except:
-            # catch error and return response
+        except Exception as e:
+            print(e)  # Log the exception for debugging
             return {
                 "success": False,
                 "message": "Sorry something went wrong please try again."
             }, 400
-
-
-# stk push path [POST request to {baseURL}/stkpush]
-api.add_resource(MakeSTKPush, "/stkpush")
 
 if __name__ == "__main__":
     app.run(debug=True)
