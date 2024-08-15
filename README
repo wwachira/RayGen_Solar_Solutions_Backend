@@ -49,6 +49,8 @@ RayGen Solar Solutions web application includes the following features:
 - *Wireframes*: Figma (GUI-graphical user interface design)
 - *Frontend*: React
 - *Frontend Styling*: CSS/Bootstrap/MUI
+- *Testing*: Jest & pytest
+- *Deployment*: Render, AWS
 
 ## Installation
 ### Backend
