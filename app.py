@@ -24,7 +24,7 @@ from flask import render_template_string
 
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-DATABASE = os.environ.get("DB_URI", f"sqlite:///{os.path.join(BASE_DIR, 'solar_website.db')}")
+DATABASE = os.environ.get ("DATABASE_URL", "postgresql://raygen_solar_solutions_backend_ycv3_user:VlVxycDCVDPvop3Niwhug6FMghfYk2xm@dpg-cqvaiflsvqrc73bveutg-a.oregon-postgres.render.com/raygen_solar_solutions_backend_ycv3")
 
 
 def get_mpesa_token():
